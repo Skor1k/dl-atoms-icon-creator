@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Icon Creator</title>
+<style>
+  /* shadcn/ui-inspired tokens (zinc palette) */
+  :root {
+    --background: #ffffff;
+    --foreground: #09090b;
+    --card: #ffffff;
+    --muted: #f4f4f5;
+    --muted-foreground: #71717a;
+    --border: #e4e4e7;
+    --input: #e4e4e7;
+    --ring: #18181b;
+    --primary: #18181b;
+    --primary-foreground: #fafafa;
+    --secondary: #f4f4f5;
+    --secondary-foreground: #18181b;
+    --accent: #f4f4f5;
+    --accent-foreground: #18181b;
+    --destructive: #ef4444;
+    --destructive-foreground: #fafafa;
+    --success: #16a34a;
+    --radius: 6px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: #09090b;
+      --foreground: #fafafa;
+      --card: #09090b;
+      --muted: #27272a;
+      --muted-foreground: #a1a1aa;
+      --border: #27272a;
+      --input: #27272a;
+      --ring: #d4d4d8;
+      --primary: #fafafa;
+      --primary-foreground: #18181b;
+      --secondary: #27272a;
+      --secondary-foreground: #fafafa;
+      --accent: #27272a;
+      --accent-foreground: #fafafa;
+      --destructive: #7f1d1d;
+      --destructive-foreground: #fafafa;
+      --success: #22c55e;
+    }
+  }
+
+  /* Purple accent — activated when "color" mode is selected */
+  body.theme-purple {
+    --primary: #7A45E5;
+    --primary-foreground: #ffffff;
+    --ring: #7A45E5;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+    background: var(--background);
+    color: var(--foreground);
+    padding: 16px;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Section labels (uppercase tracking like shadcn FormLabel) */
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--foreground);
+    margin-bottom: 6px;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .section { margin-bottom: 16px; }
+
+  /* Section description (shadcn FormDescription) */
+  .section-hint {
+    font-size: 12px;
+    color: var(--muted-foreground);
+    margin-top: -2px;
+    margin-bottom: 10px;
+    line-height: 1.4;
+  }
+
+  /* ---- Input (shadcn Input) ---- */
+  input[type="text"] {
+    width: 100%;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--input);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--foreground);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: box-shadow 0.15s, border-color 0.15s;
+  }
+
+  input[type="text"]::placeholder { color: var(--muted-foreground); }
+
+  input[type="text"]:focus {
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 15%, transparent);
+  }
+
+  /* ---- Card (variant slot) ---- */
+  #variants-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .variant-slot {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--card);
+    transition: border-color 0.15s;
+  }
+  .variant-slot:hover { border-color: var(--muted-foreground); }
+
+  .variant-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .svg-preview {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .svg-preview img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+  }
+  .svg-preview.empty {
+    color: var(--muted-foreground);
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .variant-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--foreground);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Icon-only ghost button */
+  .btn-remove {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--muted-foreground);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    padding: 0;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn-remove:hover {
+    background: var(--accent);
+    color: var(--destructive);
+  }
+
+  /* ---- Select (shadcn Select trigger) ---- */
+  .color-mode-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .color-mode-row label {
+    font-size: 12px;
+    color: var(--muted-foreground);
+    margin: 0;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    flex-shrink: 0;
+  }
+  .color-mode-select {
+    width: 100%;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--input);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--foreground);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    transition: box-shadow 0.15s, border-color 0.15s;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 32px;
+  }
+  .color-mode-select:focus {
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 15%, transparent);
+  }
+
+  /* ---- Props ---- */
+  .props-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .prop-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .prop-row input[type="text"] {
+    flex: 1;
+    height: 30px;
+    font-size: 12px;
+    padding: 0 10px;
+  }
+  .prop-sep {
+    font-size: 13px;
+    color: var(--muted-foreground);
+    flex-shrink: 0;
+  }
+  .btn-remove-prop {
+    width: 24px;
+    height: 30px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--muted-foreground);
+    font-size: 14px;
+    padding: 0;
+    flex-shrink: 0;
+    border-radius: var(--radius);
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn-remove-prop:hover {
+    color: var(--destructive);
+    background: var(--accent);
+  }
+  .btn-add-prop {
+    margin-top: 6px;
+    border: none;
+    background: transparent;
+    color: var(--muted-foreground);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 4px 0;
+    text-align: left;
+    transition: color 0.15s;
+  }
+  .btn-add-prop:hover { color: var(--foreground); }
+
+  /* ---- Buttons (shadcn Button) ---- */
+  .btn-secondary {
+    width: 100%;
+    height: 36px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--muted-foreground);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .btn-secondary:hover {
+    border-color: var(--muted-foreground);
+    color: var(--foreground);
+    background: var(--accent);
+  }
+
+  .btn-primary {
+    width: 100%;
+    height: 40px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: opacity 0.15s, box-shadow 0.15s;
+  }
+  .btn-primary:hover:not(:disabled) {
+    opacity: 0.9;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  }
+  .btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .btn-primary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 25%, transparent);
+  }
+
+  /* ---- Sizes (shadcn Toggle / Badge) ---- */
+  .sizes-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .size-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: 1px solid var(--input);
+    border-radius: var(--radius);
+    padding: 4px 12px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    user-select: none;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    height: 28px;
+  }
+  .size-chip:hover { background: var(--accent); color: var(--foreground); }
+
+  .size-chip input[type="checkbox"] { display: none; }
+
+  .size-chip.checked {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+  .size-chip.checked:hover { background: var(--primary); opacity: 0.9; }
+
+  .size-chip .chip-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    margin-left: 4px;
+    margin-right: -4px;
+    font-size: 12px;
+    line-height: 1;
+    opacity: 0.6;
+    transition: opacity 0.15s, background 0.15s;
+  }
+  .size-chip .chip-remove:hover {
+    opacity: 1;
+    background: rgba(255,255,255,0.2);
+  }
+  .size-chip:not(.checked) .chip-remove:hover {
+    background: var(--accent);
+    color: var(--destructive);
+    opacity: 1;
+  }
+
+  .size-chip-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
+    line-height: 1;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .size-chip-add:hover {
+    border-color: var(--muted-foreground);
+    color: var(--foreground);
+    background: var(--accent);
+  }
+
+  .size-chip-input {
+    width: 60px;
+    height: 28px;
+    padding: 0 8px;
+    border: 1px solid var(--ring);
+    border-radius: var(--radius);
+    font-size: 12px;
+    font-family: inherit;
+    text-align: center;
+    outline: none;
+    box-sizing: border-box;
+    background: var(--background);
+    color: var(--foreground);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 15%, transparent);
+  }
+  .size-chip-input::-webkit-inner-spin-button,
+  .size-chip-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+  /* ---- Status / Hints ---- */
+  #status {
+    font-size: 12px;
+    text-align: center;
+    padding: 8px 0;
+    min-height: 24px;
+    color: var(--muted-foreground);
+  }
+  #status.error { color: var(--destructive); }
+  #status.success { color: var(--success); }
+
+  .empty-hint {
+    text-align: center;
+    color: var(--muted-foreground);
+    font-size: 12px;
+    padding: 16px 0 8px;
+  }
+
+  /* ---- Separator (shadcn Separator) ---- */
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 16px 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- Icon name & color mode -->
+<div class="section">
+  <label>Имя компонента</label>
+  <input type="text" id="icon-name" placeholder="Например, Actions / ArrowRightLast" />
+
+  <label for="global-color-mode" style="margin-top: 14px;">Цвет компонента</label>
+  <select class="color-mode-select" id="global-color-mode">
+    <option value="colorless">Colorless</option>
+    <option value="color">Color (сохранить исходные цвета)</option>
+  </select>
+</div>
+
+<hr>
+
+<!-- SVG Variants -->
+<div class="section">
+  <label>SVG-варианты</label>
+  <div class="section-hint">Выберите вектор, который поместится в 24×24 иконку</div>
+
+  <div id="variants-list">
+    <div class="empty-hint" id="empty-hint">Выделите векторы на канвасе — они появятся здесь</div>
+  </div>
+</div>
+
+<hr>
+
+<!-- Sizes -->
+<div class="section">
+  <label>Размеры</label>
+  <div class="sizes-row" id="sizes-row">
+    <label class="size-chip checked" data-size="24"><input type="checkbox" checked>24</label>
+    <label class="size-chip checked" data-size="20"><input type="checkbox" checked>20</label>
+    <label class="size-chip checked" data-size="16"><input type="checkbox" checked>16</label>
+    <label class="size-chip checked" data-size="12"><input type="checkbox" checked>12</label>
+    <label class="size-chip checked" data-size="8"><input type="checkbox" checked>8</label>
+    <button class="size-chip-add" id="btn-add-size" type="button" title="Добавить размер">+</button>
+  </div>
+</div>
+
+<div id="status"></div>
+
+<button class="btn-primary" id="btn-create" disabled>Создать Component Set</button>
+
+<script>
+  // ─── State ───────────────────────────────────────────────
+  var variants = []; // [{ nodeId, nodeName, svgData, props: [{key,val}] }]
+
+  // ─── Helpers ─────────────────────────────────────────────
+
+  function setStatus(msg, type) {
+    var el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = type || '';
+  }
+
+  // svgData from plugin is already a ready-to-use data URL (PNG base64)
+  function previewSrc(data) {
+    return data || null;
+  }
+
+  function updateCreateButton() {
+    var btn = document.getElementById('btn-create');
+    btn.disabled = variants.length === 0;
+  }
+
+  function renderVariants() {
+    var list = document.getElementById('variants-list');
+    var hint = document.getElementById('empty-hint');
+
+    // Remove all slots (keep hint)
+    var slots = list.querySelectorAll('.variant-slot');
+    slots.forEach(function(s) { s.remove(); });
+
+    if (variants.length === 0) {
+      hint.style.display = '';
+    } else {
+      hint.style.display = 'none';
+      variants.forEach(function(v, idx) {
+        list.appendChild(createSlotEl(v, idx));
+      });
+    }
+
+    updateCreateButton();
+  }
+
+  function createSlotEl(v, idx) {
+    var slot = document.createElement('div');
+    slot.className = 'variant-slot';
+
+    // Header: preview + name + remove
+    var header = document.createElement('div');
+    header.className = 'variant-header';
+
+    var preview = document.createElement('div');
+    preview.className = 'svg-preview' + (v.svgData ? '' : ' empty');
+    if (v.svgData) {
+      var img = document.createElement('img');
+      img.src = previewSrc(v.svgData);
+      img.alt = '';
+      preview.appendChild(img);
+    } else {
+      preview.textContent = '?';
+    }
+
+    var nameEl = document.createElement('div');
+    nameEl.className = 'variant-name';
+    nameEl.textContent = v.nodeName || ('Вариант ' + (idx + 1));
+
+    var removeBtn = document.createElement('button');
+    removeBtn.className = 'btn-remove';
+    removeBtn.title = 'Удалить вариант';
+    removeBtn.innerHTML = '&times;';
+    removeBtn.addEventListener('click', function() {
+      variants.splice(idx, 1);
+      renderVariants();
+    });
+
+    header.appendChild(preview);
+    header.appendChild(nameEl);
+    header.appendChild(removeBtn);
+    slot.appendChild(header);
+
+    // Props list
+    var propsList = document.createElement('div');
+    propsList.className = 'props-list';
+
+    function renderProps() {
+      propsList.innerHTML = '';
+      v.props.forEach(function(prop, pi) {
+        var row = document.createElement('div');
+        row.className = 'prop-row';
+
+        var keyInput = document.createElement('input');
+        keyInput.type = 'text';
+        keyInput.placeholder = 'Prop';
+        keyInput.value = prop.key;
+        keyInput.addEventListener('input', function() {
+          variants[idx].props[pi].key = this.value;
+        });
+
+        var sep = document.createElement('span');
+        sep.className = 'prop-sep';
+        sep.textContent = '=';
+
+        var valInput = document.createElement('input');
+        valInput.type = 'text';
+        valInput.placeholder = 'value';
+        valInput.value = prop.val;
+        valInput.addEventListener('input', function() {
+          variants[idx].props[pi].val = this.value;
+        });
+
+        var removeP = document.createElement('button');
+        removeP.className = 'btn-remove-prop';
+        removeP.innerHTML = '&times;';
+        removeP.title = 'Удалить prop';
+        removeP.addEventListener('click', function() {
+          variants[idx].props.splice(pi, 1);
+          renderProps();
+        });
+
+        row.appendChild(keyInput);
+        row.appendChild(sep);
+        row.appendChild(valInput);
+        row.appendChild(removeP);
+        propsList.appendChild(row);
+      });
+
+      // Add prop button
+      var addPropBtn = document.createElement('button');
+      addPropBtn.className = 'btn-add-prop';
+      addPropBtn.textContent = '+ Добавить prop';
+      addPropBtn.addEventListener('click', function() {
+        variants[idx].props.push({ key: '', val: '' });
+        renderProps();
+      });
+      propsList.appendChild(addPropBtn);
+    }
+
+    renderProps();
+    slot.appendChild(propsList);
+
+    return slot;
+  }
+
+  // ─── Global color mode → theme switch ─────────────────────
+  var globalColorModeEl = document.getElementById('global-color-mode');
+  function applyTheme() {
+    document.body.classList.toggle('theme-purple', globalColorModeEl.value === 'color');
+  }
+  globalColorModeEl.addEventListener('change', applyTheme);
+  applyTheme();
+
+  // ─── Sizes chip toggle / remove / add ─────────────────────
+  var sizesRow = document.getElementById('sizes-row');
+  sizesRow.addEventListener('click', function(e) {
+    // Remove (×) on custom chip
+    if (e.target.classList.contains('chip-remove')) {
+      var chipToRemove = e.target.closest('.size-chip');
+      if (chipToRemove) chipToRemove.remove();
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    // Toggle chip checked state
+    var chip = e.target.closest('.size-chip');
+    if (!chip) return;
+    var cb = chip.querySelector('input[type="checkbox"]');
+    cb.checked = !cb.checked;
+    chip.classList.toggle('checked', cb.checked);
+  });
+
+  // "+" button → inline number input
+  document.getElementById('btn-add-size').addEventListener('click', function() {
+    var btn = this;
+    if (sizesRow.querySelector('.size-chip-input')) return;
+    var input = document.createElement('input');
+    input.type = 'number';
+    input.min = '1';
+    input.max = '999';
+    input.placeholder = 'px';
+    input.className = 'size-chip-input';
+    sizesRow.insertBefore(input, btn);
+    btn.style.display = 'none';
+    input.focus();
+
+    var done = false;
+    function finish(commit) {
+      if (done) return;
+      done = true;
+      if (commit) {
+        var val = parseInt(input.value, 10);
+        if (val > 0 && val <= 999) addSizeChip(val);
+      }
+      input.remove();
+      btn.style.display = '';
+    }
+
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { finish(true); e.preventDefault(); }
+      else if (e.key === 'Escape') { finish(false); }
+    });
+    input.addEventListener('blur', function() { finish(true); });
+  });
+
+  function addSizeChip(size) {
+    // If already exists — just (re)check it
+    var existing = sizesRow.querySelector('.size-chip[data-size="' + size + '"]');
+    if (existing) {
+      existing.classList.add('checked');
+      existing.querySelector('input').checked = true;
+      return;
+    }
+    var chip = document.createElement('label');
+    chip.className = 'size-chip checked is-custom';
+    chip.dataset.size = size;
+    chip.innerHTML = '<input type="checkbox" checked>' + size +
+      '<span class="chip-remove" title="Удалить">×</span>';
+    // Insert in descending-size order; "+" button always stays last
+    var chips = sizesRow.querySelectorAll('.size-chip');
+    var inserted = false;
+    for (var i = 0; i < chips.length; i++) {
+      if (size > parseInt(chips[i].dataset.size, 10)) {
+        sizesRow.insertBefore(chip, chips[i]);
+        inserted = true;
+        break;
+      }
+    }
+    if (!inserted) sizesRow.insertBefore(chip, document.getElementById('btn-add-size'));
+  }
+
+  // ─── Create button ────────────────────────────────────────
+  document.getElementById('btn-create').addEventListener('click', function() {
+    var iconName = document.getElementById('icon-name').value.trim();
+    if (!iconName) {
+      setStatus('Введите имя компонента', 'error');
+      document.getElementById('icon-name').focus();
+      return;
+    }
+
+    // Validate props
+    for (var i = 0; i < variants.length; i++) {
+      var v = variants[i];
+      for (var pi = 0; pi < v.props.length; pi++) {
+        if (!v.props[pi].key.trim()) {
+          setStatus('Заполните имя prop в варианте ' + (i + 1), 'error');
+          return;
+        }
+      }
+    }
+
+    // Collect sizes
+    var sizes = [];
+    document.querySelectorAll('.size-chip.checked').forEach(function(chip) {
+      sizes.push(parseInt(chip.dataset.size));
+    });
+
+    if (sizes.length === 0) {
+      setStatus('Выберите хотя бы один размер', 'error');
+      return;
+    }
+
+    // Global color mode (applies to all variants)
+    var globalColorMode = document.getElementById('global-color-mode').value;
+
+    // Build variants data
+    var variantsData = variants.map(function(v) {
+      var props = {};
+      v.props.forEach(function(p) {
+        if (p.key.trim()) props[p.key.trim()] = p.val;
+      });
+      return {
+        nodeId: v.nodeId,
+        props: props,
+        colorMode: globalColorMode
+      };
+    });
+
+    setStatus('Создаю…');
+    document.getElementById('btn-create').disabled = true;
+
+    parent.postMessage({
+      pluginMessage: {
+        type: 'create-icons',
+        data: { iconName: iconName, variants: variantsData, sizes: sizes }
+      }
+    }, '*');
+  });
+
+  // ─── Messages from plugin ─────────────────────────────────
+  window.onmessage = function(event) {
+    var msg = event.data.pluginMessage;
+    if (!msg) return;
+
+    if (msg.type === 'selection') {
+      // Sync the list with current canvas selection.
+      // Preserve user-edited props for nodes that are still selected (match by nodeId).
+      var nodes = msg.nodes;
+      var prevById = {};
+      variants.forEach(function(v) { prevById[v.nodeId] = v; });
+
+      // Only auto-suggest props when there are 2+ selected items
+      // (single selection → no variants prop, just one icon)
+      var suggestProps = nodes.length > 1;
+
+      variants = nodes.map(function(node) {
+        var prev = prevById[node.id];
+        if (prev) {
+          // Keep props & name user has set; refresh svgData in case the vector changed
+          prev.svgData = node.svgData;
+          prev.nodeName = node.name;
+          return prev;
+        }
+        return {
+          nodeId: node.id,
+          nodeName: node.name,
+          svgData: node.svgData,
+          props: suggestProps ? guessPropsFromName(node.name) : []
+        };
+      });
+
+      renderVariants();
+      if (nodes.length === 0) {
+        setStatus('Выделите векторы на канвасе');
+      } else {
+        setStatus('Выделено: ' + nodes.length);
+      }
+    }
+
+    if (msg.type === 'done') {
+      setStatus('✓ Component set «' + msg.name + '» создан!', 'success');
+      document.getElementById('btn-create').disabled = false;
+    }
+
+    if (msg.type === 'error') {
+      setStatus('Ошибка: ' + msg.message, 'error');
+      document.getElementById('btn-create').disabled = false;
+    }
+  };
+
+  function guessPropsFromName(name) {
+    var lower = name.toLowerCase();
+    // Detect filled/line/outline/solid keywords
+    if (lower.indexOf('filled') !== -1 || lower.indexOf('solid') !== -1) {
+      return [{ key: 'Filled', val: 'true' }];
+    }
+    if (lower.indexOf('line') !== -1 || lower.indexOf('outline') !== -1 || lower.indexOf('stroke') !== -1) {
+      return [{ key: 'Filled', val: 'false' }];
+    }
+    // Default empty prop for user to fill
+    return [{ key: 'Filled', val: 'false' }];
+  }
+
+  // Initial request
+  parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
+</script>
+</body>
+</html>
