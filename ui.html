@@ -457,37 +457,81 @@
     border-top: 1px solid var(--border);
     margin: 16px 0;
   }
+
+  /* ---- Edit mode: Component Set header ---- */
+  .edit-set-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--muted);
+  }
+  .edit-set-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: #7A45E5;
+    background: color-mix(in srgb, #7A45E5 12%, transparent);
+    border: 1px solid color-mix(in srgb, #7A45E5 30%, transparent);
+    border-radius: 4px;
+    padding: 2px 7px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .edit-set-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--foreground);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 </style>
 </head>
 <body>
 
-<!-- Icon name & color mode -->
-<div class="section">
-  <label>Имя компонента</label>
-  <input type="text" id="icon-name" placeholder="Например, Actions / ArrowRightLast" />
+<!-- ════ CREATE MODE ════ -->
+<div id="view-create">
+  <!-- Icon name & color mode -->
+  <div class="section">
+    <label>Имя компонента</label>
+    <input type="text" id="icon-name" placeholder="Например, Actions / ArrowRightLast" />
 
-  <label for="global-color-mode" style="margin-top: 14px;">Цвет компонента</label>
-  <select class="color-mode-select" id="global-color-mode">
-    <option value="colorless">Colorless</option>
-    <option value="color">Color (сохранить исходные цвета)</option>
-  </select>
-</div>
+    <label for="global-color-mode" style="margin-top: 14px;">Цвет компонента</label>
+    <select class="color-mode-select" id="global-color-mode">
+      <option value="colorless">Colorless</option>
+      <option value="color">Color (сохранить исходные цвета)</option>
+    </select>
+  </div>
 
-<hr>
+  <hr>
 
-<!-- SVG Variants -->
-<div class="section">
-  <label>SVG-варианты</label>
-  <div class="section-hint">Выберите вектор, который поместится в 24×24 иконку</div>
+  <!-- SVG Variants -->
+  <div class="section">
+    <label>SVG-варианты</label>
+    <div class="section-hint">Выберите вектор, который поместится в 24×24 иконку</div>
 
-  <div id="variants-list">
-    <div class="empty-hint" id="empty-hint">Выделите векторы на канвасе — они появятся здесь</div>
+    <div id="variants-list">
+      <div class="empty-hint" id="empty-hint">Выделите векторы на канвасе — они появятся здесь</div>
+    </div>
   </div>
 </div>
 
+<!-- ════ EDIT MODE ════ -->
+<div id="view-edit" style="display:none">
+  <div class="section">
+    <div class="edit-set-header">
+      <div class="edit-set-badge">Component Set</div>
+      <div class="edit-set-name" id="edit-set-name"></div>
+    </div>
+  </div>
+
+</div>
+
 <hr>
 
-<!-- Sizes -->
+<!-- Sizes (shared between both modes) -->
 <div class="section">
   <label>Размеры</label>
   <div class="sizes-row" id="sizes-row">
@@ -507,6 +551,74 @@
 <script>
   // ─── State ───────────────────────────────────────────────
   var variants = []; // [{ nodeId, nodeName, svgData, props: [{key,val}] }]
+  var mode = 'create'; // 'create' | 'edit'
+  var editingComponentSetId = null;
+
+  // ─── Mode switching ──────────────────────────────────────
+
+  function switchToCreateMode() {
+    mode = 'create';
+    editingComponentSetId = null;
+    document.getElementById('view-create').style.display = '';
+    document.getElementById('view-edit').style.display = 'none';
+    document.getElementById('btn-create').textContent = 'Создать Component Set';
+    resetSizesToDefault();
+    parent.postMessage({ pluginMessage: { type: 'resize', width: 420, height: 580 } }, '*');
+  }
+
+  function switchToEditMode(id, name, existingSizes) {
+    mode = 'edit';
+    editingComponentSetId = id;
+    document.getElementById('view-create').style.display = 'none';
+    document.getElementById('view-edit').style.display = '';
+    document.getElementById('edit-set-name').textContent = name;
+    document.getElementById('btn-create').textContent = 'Обновить Component Set';
+    document.getElementById('btn-create').disabled = false;
+    setSizesFromList(existingSizes);
+    parent.postMessage({ pluginMessage: { type: 'resize', width: 420, height: 360 } }, '*');
+  }
+
+  // ─── Sizes helpers ────────────────────────────────────────
+
+  var DEFAULT_SIZES = [24, 20, 16, 12, 8];
+
+  function resetSizesToDefault() {
+    var sizesRow = document.getElementById('sizes-row');
+    // Remove all chips except the "+" button
+    var chips = sizesRow.querySelectorAll('.size-chip');
+    chips.forEach(function(c) { c.remove(); });
+    var addBtn = document.getElementById('btn-add-size');
+    DEFAULT_SIZES.forEach(function(size) {
+      var chip = document.createElement('label');
+      chip.className = 'size-chip checked';
+      chip.dataset.size = size;
+      chip.innerHTML = '<input type="checkbox" checked>' + size;
+      sizesRow.insertBefore(chip, addBtn);
+    });
+  }
+
+  function setSizesFromList(sizes) {
+    var sizesRow = document.getElementById('sizes-row');
+    var chips = sizesRow.querySelectorAll('.size-chip');
+    chips.forEach(function(c) { c.remove(); });
+    var addBtn = document.getElementById('btn-add-size');
+    sizes.forEach(function(size) {
+      var chip = document.createElement('label');
+      chip.className = 'size-chip checked';
+      chip.dataset.size = size;
+      chip.innerHTML = '<input type="checkbox" checked>' + size +
+        '<span class="chip-remove" title="Удалить">×</span>';
+      sizesRow.insertBefore(chip, addBtn);
+    });
+  }
+
+  function getCheckedSizes() {
+    var sizes = [];
+    document.querySelectorAll('.size-chip.checked').forEach(function(chip) {
+      sizes.push(parseInt(chip.dataset.size));
+    });
+    return sizes;
+  }
 
   // ─── Helpers ─────────────────────────────────────────────
 
@@ -523,7 +635,11 @@
 
   function updateCreateButton() {
     var btn = document.getElementById('btn-create');
-    btn.disabled = variants.length === 0;
+    if (mode === 'edit') {
+      btn.disabled = getCheckedSizes().length === 0;
+    } else {
+      btn.disabled = variants.length === 0;
+    }
   }
 
   function renderVariants() {
@@ -663,6 +779,7 @@
       if (chipToRemove) chipToRemove.remove();
       e.preventDefault();
       e.stopPropagation();
+      updateCreateButton();
       return;
     }
     // Toggle chip checked state
@@ -671,6 +788,7 @@
     var cb = chip.querySelector('input[type="checkbox"]');
     cb.checked = !cb.checked;
     chip.classList.toggle('checked', cb.checked);
+    updateCreateButton();
   });
 
   // "+" button → inline number input
@@ -732,8 +850,26 @@
     if (!inserted) sizesRow.insertBefore(chip, document.getElementById('btn-add-size'));
   }
 
-  // ─── Create button ────────────────────────────────────────
+  // ─── Create / Update button ───────────────────────────────
   document.getElementById('btn-create').addEventListener('click', function() {
+    if (mode === 'edit') {
+      var sizes = getCheckedSizes();
+      if (sizes.length === 0) {
+        setStatus('Выберите хотя бы один размер', 'error');
+        return;
+      }
+      setStatus('Обновляю…');
+      document.getElementById('btn-create').disabled = true;
+      parent.postMessage({
+        pluginMessage: {
+          type: 'update-component-set',
+          data: { componentSetId: editingComponentSetId, sizes: sizes }
+        }
+      }, '*');
+      return;
+    }
+
+    // ── Create mode ──
     var iconName = document.getElementById('icon-name').value.trim();
     if (!iconName) {
       setStatus('Введите имя компонента', 'error');
@@ -752,21 +888,14 @@
       }
     }
 
-    // Collect sizes
-    var sizes = [];
-    document.querySelectorAll('.size-chip.checked').forEach(function(chip) {
-      sizes.push(parseInt(chip.dataset.size));
-    });
-
+    var sizes = getCheckedSizes();
     if (sizes.length === 0) {
       setStatus('Выберите хотя бы один размер', 'error');
       return;
     }
 
-    // Global color mode (applies to all variants)
     var globalColorMode = document.getElementById('global-color-mode').value;
 
-    // Build variants data
     var variantsData = variants.map(function(v) {
       var props = {};
       v.props.forEach(function(p) {
@@ -795,7 +924,16 @@
     var msg = event.data.pluginMessage;
     if (!msg) return;
 
+    if (msg.type === 'component-set-selected') {
+      switchToEditMode(msg.id, msg.name, msg.existingSizes);
+      setStatus('Component Set выделен');
+      return;
+    }
+
     if (msg.type === 'selection') {
+      // If we were in edit mode, switch back to create mode
+      if (mode === 'edit') switchToCreateMode();
+
       // Sync the list with current canvas selection.
       // Preserve user-edited props for nodes that are still selected (match by nodeId).
       var nodes = msg.nodes;
@@ -832,6 +970,11 @@
 
     if (msg.type === 'done') {
       setStatus('✓ Component set «' + msg.name + '» создан!', 'success');
+      document.getElementById('btn-create').disabled = false;
+    }
+
+    if (msg.type === 'update-done') {
+      setStatus('✓ Component Set «' + msg.name + '» обновлён!', 'success');
       document.getElementById('btn-create').disabled = false;
     }
 

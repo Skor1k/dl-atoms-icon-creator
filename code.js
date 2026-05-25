@@ -18,6 +18,18 @@ figma.ui.onmessage = async function (msg) {
     }
   }
 
+  if (msg.type === 'update-component-set') {
+    try {
+      await updateComponentSet(msg.data);
+    } catch (err) {
+      figma.ui.postMessage({ type: 'error', message: String(err) });
+    }
+  }
+
+  if (msg.type === 'resize') {
+    figma.ui.resize(msg.width, msg.height);
+  }
+
   if (msg.type === 'close') {
     figma.closePlugin();
   }
@@ -25,6 +37,13 @@ figma.ui.onmessage = async function (msg) {
 
 async function sendSelectionToUI() {
   var selection = figma.currentPage.selection;
+
+  // Single COMPONENT_SET selected → switch to "edit sizes" mode
+  if (selection.length === 1 && selection[0].type === 'COMPONENT_SET') {
+    await sendComponentSetInfoToUI(selection[0]);
+    return;
+  }
+
   var nodes = [];
 
   for (var i = 0; i < selection.length; i++) {
@@ -50,6 +69,138 @@ async function sendSelectionToUI() {
   }
 
   figma.ui.postMessage({ type: 'selection', nodes: nodes });
+}
+
+async function sendComponentSetInfoToUI(cs) {
+  var sizesSet = {};
+  var existingSizes = [];
+
+  for (var i = 0; i < cs.children.length; i++) {
+    var child = cs.children[i];
+    if (child.type !== 'COMPONENT') continue;
+    var parsed = parseVariantName(child.name);
+    if (parsed.size !== null && !sizesSet[parsed.size]) {
+      sizesSet[parsed.size] = true;
+      existingSizes.push(parsed.size);
+    }
+  }
+  existingSizes.sort(function(a, b) { return b - a; });
+
+  figma.ui.postMessage({
+    type: 'component-set-selected',
+    id: cs.id,
+    name: cs.name,
+    existingSizes: existingSizes
+  });
+}
+
+// Parses "Size=24, Filled=false" → { size: 24, props: { Filled: 'false' } }
+function parseVariantName(name) {
+  var result = { size: null, props: {} };
+  var parts = name.split(',');
+  for (var i = 0; i < parts.length; i++) {
+    var part = parts[i].trim();
+    var eq = part.indexOf('=');
+    if (eq === -1) continue;
+    var key = part.substring(0, eq).trim();
+    var val = part.substring(eq + 1).trim();
+    if (key === 'Size') {
+      result.size = parseInt(val, 10);
+    } else {
+      result.props[key] = val;
+    }
+  }
+  return result;
+}
+
+function propsToKey(props) {
+  return Object.keys(props).sort().map(function(k) { return k + '=' + props[k]; }).join(',');
+}
+
+async function updateComponentSet(data) {
+  var cs = await figma.getNodeByIdAsync(data.componentSetId);
+  if (!cs || cs.type !== 'COMPONENT_SET') {
+    figma.ui.postMessage({ type: 'error', message: 'Component Set не найден' });
+    return;
+  }
+
+  var desiredSizes = data.sizes.slice().sort(function(a, b) { return b - a; });
+  if (desiredSizes.length === 0) {
+    figma.ui.postMessage({ type: 'error', message: 'Выберите хотя бы один размер' });
+    return;
+  }
+
+  // Group existing children by variant props (excluding Size)
+  var variantGroups = {}; // propsKey → { props, sizeMap: { size → ComponentNode } }
+  for (var i = 0; i < cs.children.length; i++) {
+    var child = cs.children[i];
+    if (child.type !== 'COMPONENT') continue;
+    var parsed = parseVariantName(child.name);
+    if (parsed.size === null) continue;
+    var pKey = propsToKey(parsed.props);
+    if (!variantGroups[pKey]) variantGroups[pKey] = { props: parsed.props, sizeMap: {} };
+    variantGroups[pKey].sizeMap[parsed.size] = child;
+  }
+
+  var pKeys = Object.keys(variantGroups);
+  for (var pk = 0; pk < pKeys.length; pk++) {
+    var group = variantGroups[pKeys[pk]];
+    var sizeMap = group.sizeMap;
+
+    // Choose reference: prefer Size=24, otherwise the largest available
+    var refSize = null;
+    var refComp = null;
+    var existingSizeNums = Object.keys(sizeMap).map(Number).sort(function(a, b) { return b - a; });
+
+    if (sizeMap[24]) {
+      refSize = 24;
+      refComp = sizeMap[24];
+    } else if (existingSizeNums.length > 0) {
+      refSize = existingSizeNums[0];
+      refComp = sizeMap[refSize];
+    }
+    if (!refComp) continue;
+
+    // Add missing sizes by cloning + rescaling the reference
+    for (var si = 0; si < desiredSizes.length; si++) {
+      var size = desiredSizes[si];
+      if (!sizeMap[size]) {
+        var newComp = refComp.clone();
+        newComp.rescale(size / refSize);
+        newComp.name = buildVariantName(size, group.props);
+        cs.appendChild(newComp);
+        sizeMap[size] = newComp;
+      }
+    }
+
+    // Remove sizes no longer desired
+    for (var es = 0; es < existingSizeNums.length; es++) {
+      var existSize = existingSizeNums[es];
+      if (desiredSizes.indexOf(existSize) === -1) {
+        sizeMap[existSize].remove();
+        delete sizeMap[existSize];
+      }
+    }
+  }
+
+  // Re-sort: group by props, then size descending within each group
+  var allChildren = [];
+  for (var ci = 0; ci < cs.children.length; ci++) allChildren.push(cs.children[ci]);
+  allChildren.sort(function(a, b) {
+    var pa = parseVariantName(a.name);
+    var pb = parseVariantName(b.name);
+    var ka = propsToKey(pa.props);
+    var kb = propsToKey(pb.props);
+    if (ka !== kb) return ka.localeCompare(kb);
+    return pb.size - pa.size;
+  });
+  for (var oi = 0; oi < allChildren.length; oi++) {
+    cs.insertChild(oi, allChildren[oi]);
+  }
+
+  figma.viewport.scrollAndZoomIntoView([cs]);
+  figma.currentPage.selection = [cs];
+  figma.ui.postMessage({ type: 'update-done', name: cs.name });
 }
 
 async function createIconComponentSet(data) {
