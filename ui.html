@@ -704,6 +704,11 @@
     propsList.className = 'props-list';
 
     function renderProps() {
+      // In multi-variant mode the prop KEY is shared across all variants
+      // (variants of one set differ only by value), so add/remove/rename
+      // operate on every variant at once.
+      var multi = variants.length > 1;
+
       propsList.innerHTML = '';
       v.props.forEach(function(prop, pi) {
         var row = document.createElement('div');
@@ -713,8 +718,21 @@
         keyInput.type = 'text';
         keyInput.placeholder = 'Prop';
         keyInput.value = prop.key;
+        keyInput.dataset.pi = pi;
+        keyInput.className = 'prop-key-input';
         keyInput.addEventListener('input', function() {
-          variants[idx].props[pi].key = this.value;
+          var self = this;
+          if (multi) {
+            // Sync this prop's key across all variants + their key inputs
+            for (var vi = 0; vi < variants.length; vi++) {
+              if (variants[vi].props[pi]) variants[vi].props[pi].key = self.value;
+            }
+            document.querySelectorAll('.prop-key-input[data-pi="' + pi + '"]').forEach(function(inp) {
+              if (inp !== self) inp.value = self.value;
+            });
+          } else {
+            variants[idx].props[pi].key = self.value;
+          }
         });
 
         var sep = document.createElement('span');
@@ -725,6 +743,7 @@
         valInput.type = 'text';
         valInput.placeholder = 'value';
         valInput.value = prop.val;
+        // Value stays per-variant (that's what distinguishes the variants)
         valInput.addEventListener('input', function() {
           variants[idx].props[pi].val = this.value;
         });
@@ -734,8 +753,15 @@
         removeP.innerHTML = '&times;';
         removeP.title = 'Удалить prop';
         removeP.addEventListener('click', function() {
-          variants[idx].props.splice(pi, 1);
-          renderProps();
+          if (multi) {
+            for (var vi = 0; vi < variants.length; vi++) {
+              if (variants[vi].props[pi]) variants[vi].props.splice(pi, 1);
+            }
+            renderVariants();
+          } else {
+            variants[idx].props.splice(pi, 1);
+            renderProps();
+          }
         });
 
         row.appendChild(keyInput);
@@ -750,8 +776,16 @@
       addPropBtn.className = 'btn-add-prop';
       addPropBtn.textContent = '+ Добавить prop';
       addPropBtn.addEventListener('click', function() {
-        variants[idx].props.push({ key: '', val: '' });
-        renderProps();
+        if (multi) {
+          // Add the same prop (default value "true") to every variant
+          for (var vi = 0; vi < variants.length; vi++) {
+            variants[vi].props.push({ key: '', val: 'true' });
+          }
+          renderVariants();
+        } else {
+          variants[idx].props.push({ key: '', val: '' });
+          renderProps();
+        }
       });
       propsList.appendChild(addPropBtn);
     }
