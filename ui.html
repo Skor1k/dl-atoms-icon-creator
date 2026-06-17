@@ -777,9 +777,9 @@
       addPropBtn.textContent = '+ Добавить prop';
       addPropBtn.addEventListener('click', function() {
         if (multi) {
-          // Add the same prop (default value "true") to every variant
+          // Add the same prop (default value "false") to every variant
           for (var vi = 0; vi < variants.length; vi++) {
-            variants[vi].props.push({ key: '', val: 'true' });
+            variants[vi].props.push({ key: '', val: 'false' });
           }
           renderVariants();
         } else {
